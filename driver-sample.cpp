@@ -9,7 +9,7 @@ using std::printf;
 #define SHOWADDRESS1
 #define SHOWADDRESS2
 #define SHOWREAL
-#define SHOW_EXCEPTIONS
+//#define SHOW_EXCEPTIONS
 
 #include "ObjectAllocator.h"
 #include "PRNG.h"
@@ -1062,7 +1062,7 @@ void DisableOA()
   }
   catch(...)
   {
-    cout << "Unexpected exception thrown from Free in DIsableOA."  << endl;
+    cout << "Unexpected exception thrown from Free in DisableOA."  << endl;
   }
 
   for (int i = 0; i < 6; i++)

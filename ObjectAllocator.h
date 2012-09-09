@@ -8,6 +8,7 @@
 #endif
 
 #include <string>
+#include <vector>
 
 // If the client doesn't specify these:
 static const int DEFAULT_OBJECTS_PER_PAGE = 4;
@@ -156,6 +157,10 @@ class ObjectAllocator
     ObjectAllocator &operator=(const ObjectAllocator &oa);
 
     // Other private fields and methods...
+    void ValidateFree(const void *Object) const throw(OAException);
+    void new_page();
+    std::vector<void*> used_objects;
+    std::vector<void*> free_objects;
 };
 
 #endif
