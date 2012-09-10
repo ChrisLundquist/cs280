@@ -9,11 +9,15 @@ ObjectAllocator::ObjectAllocator(unsigned ObjectSize, const OAConfig& config) th
     OAStats_.PageSize_ = Config_.ObjectsPerPage_ * ObjectSize + sizeof(void*);
     used_objects = std::vector<void*>();
     free_objects = std::vector<void*>();
+    pages = std::vector<void*>();
     new_page();
 }
 
 // Destroys the ObjectManager (never throws)
 ObjectAllocator::~ObjectAllocator() throw() {
+    for(unsigned i = 0; i < pages.size(); i++){
+        delete[] (char*) pages[i];
+    }
 }
 
 inline static void OAStatsAllocate(OAStats& stats) {
@@ -24,7 +28,16 @@ inline static void OAStatsAllocate(OAStats& stats) {
 }
 
 void ObjectAllocator::new_page() {
-    char* allocation = new char[OAStats_.PageSize_];
+    char* allocation = NULL;
+    try {
+        allocation = new char[OAStats_.PageSize_];
+    }
+    catch (std::bad_alloc &) {
+        throw OAException(OAException::E_NO_MEMORY, "allocate_new_page: No system memory available.");
+    }
+
+    pages.push_back(allocation);
+
     OAStats_.PagesInUse_++;
     OAStats_.FreeObjects_ += Config_.ObjectsPerPage_;
 
@@ -37,11 +50,12 @@ void ObjectAllocator::new_page() {
 // Take an object from the free list and give it to the client (simulates new)
 // Throws an exception if the object can't be allocated. (Memory allocation problem)
 void *ObjectAllocator::Allocate() throw(OAException) {
-    OAStatsAllocate(OAStats_);
     char* allocation = NULL;
 
-    if(OAStats_.ObjectsInUse_ == Config_.MaxPages_ * Config_.ObjectsPerPage_)
+    if(OAStats_.ObjectsInUse_ >= Config_.MaxPages_ * Config_.ObjectsPerPage_)
         throw OAException(OAException::E_NO_MEMORY, "No more room sir");
+
+    OAStatsAllocate(OAStats_);
 
     if(!Config_.UseCPPMemManager_) {
         // TODO
@@ -51,7 +65,13 @@ void *ObjectAllocator::Allocate() throw(OAException) {
         free_objects.pop_back();
         used_objects.push_back(allocation);
     } else {
-        allocation = new char[OAStats_.ObjectSize_];
+        try {
+            allocation = new char[OAStats_.ObjectSize_];
+        }
+        catch (std::bad_alloc &) {
+            throw OAException(OAException::E_NO_MEMORY, "allocate_new_page: No system memory available.");
+        }
+
     }
     used_objects.push_back(allocation);
     return allocation;
@@ -137,12 +157,14 @@ void ObjectAllocator::SetDebugState(bool State) {
 }
 
 const void *ObjectAllocator::GetFreeList() const {
+    //TODO
     return free_objects.front();
 }
 
 const void *ObjectAllocator::GetPageList() const {
-    //TODO
     return NULL;
+    //TODO
+    return pages.front();
 }
 
 OAConfig ObjectAllocator::GetConfig() const {

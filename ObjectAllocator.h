@@ -161,6 +161,7 @@ class ObjectAllocator
     void new_page();
     std::vector<void*> used_objects;
     std::vector<void*> free_objects;
+    std::vector<void*> pages;
 };
 
 #endif
