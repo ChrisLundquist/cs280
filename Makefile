@@ -1,5 +1,9 @@
+test: test1
+
 test1: all
 	./test1.exe
+
+test2:
 	./test2.exe
 
 all: driver1 driver2

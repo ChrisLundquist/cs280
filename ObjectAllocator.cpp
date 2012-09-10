@@ -9,7 +9,7 @@ ObjectAllocator::ObjectAllocator(unsigned ObjectSize, const OAConfig& config) th
     OAStats_.PageSize_ = Config_.ObjectsPerPage_ * ObjectSize + sizeof(void*);
     used_objects = std::vector<void*>();
     free_objects = std::vector<void*>();
-    OAStats_.FreeObjects_= Config_.MaxPages_ * Config_.ObjectsPerPage_;
+    new_page();
 }
 
 // Destroys the ObjectManager (never throws)
@@ -25,6 +25,8 @@ inline static void OAStatsAllocate(OAStats& stats) {
 
 void ObjectAllocator::new_page() {
     char* allocation = new char[OAStats_.PageSize_];
+    OAStats_.PagesInUse_++;
+    OAStats_.FreeObjects_ += Config_.ObjectsPerPage_;
 
     for( unsigned i = 0; i < Config_.ObjectsPerPage_; i++) {
         char* object = allocation + i * OAStats_.ObjectSize_;
@@ -37,7 +39,8 @@ void ObjectAllocator::new_page() {
 void *ObjectAllocator::Allocate() throw(OAException) {
     OAStatsAllocate(OAStats_);
     char* allocation = NULL;
-    if(OAStats_.FreeObjects_ == 0)
+
+    if(OAStats_.ObjectsInUse_ == Config_.MaxPages_ * Config_.ObjectsPerPage_)
         throw OAException(OAException::E_NO_MEMORY, "No more room sir");
 
     if(!Config_.UseCPPMemManager_) {
