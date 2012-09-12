@@ -4,12 +4,17 @@
 
 ObjectAllocator::ObjectAllocator(unsigned ObjectSize, const OAConfig& config) throw(OAException) {
     OAStats_ = OAStats();
-    OAStats_.ObjectSize_ = ObjectSize;
     Config_ = config;
-    OAStats_.PageSize_ = Config_.ObjectsPerPage_ * ObjectSize + sizeof(void*);
+
+    OAStats_.ObjectSize_ = ObjectSize + Config_.HeaderBlocks_ + 2 * Config_.PadBytes_;
+    OAStats_.PageSize_ =
+        Config_.ObjectsPerPage_ * OAStats_.ObjectSize_ +
+        sizeof(void*);
+
     used_objects = std::vector<void*>();
     free_objects = std::vector<void*>();
     pages = std::vector<void*>();
+
     new_page();
 }
 
@@ -27,19 +32,29 @@ inline static void OAStatsAllocate(OAStats& stats) {
     stats.MostObjects_ = MAX(stats.MostObjects_, stats.ObjectsInUse_);
 }
 
-void ObjectAllocator::new_page() {
-    char* allocation = NULL;
+inline static char* safe_allocate(unsigned size) {
     try {
-        allocation = new char[OAStats_.PageSize_];
+        return new char[size];
     }
     catch (std::bad_alloc &) {
         throw OAException(OAException::E_NO_MEMORY, "allocate_new_page: No system memory available.");
     }
+}
+
+inline static void OAStatsNewPage(OAStats& stats, OAConfig& config) {
+    stats.PagesInUse_++;
+    stats.FreeObjects_ += config.ObjectsPerPage_;
+}
+
+void ObjectAllocator::new_page() {
+    char* allocation = safe_allocate(OAStats_.PageSize_);
+    if(Config_.DebugOn_) {
+        memset(allocation, UNALLOCATED_PATTERN, OAStats_.PageSize_);
+    }
 
     pages.push_back(allocation);
 
-    OAStats_.PagesInUse_++;
-    OAStats_.FreeObjects_ += Config_.ObjectsPerPage_;
+    OAStatsNewPage(OAStats_, Config_);
 
     for( unsigned i = 0; i < Config_.ObjectsPerPage_; i++) {
         char* object = allocation + i * OAStats_.ObjectSize_;
@@ -47,14 +62,18 @@ void ObjectAllocator::new_page() {
     }
 }
 
+inline void ObjectAllocator::ValidateAllocate() const throw(OAException) {
+    if(Config_.MaxPages_ > 0 && OAStats_.ObjectsInUse_ >= Config_.MaxPages_ * Config_.ObjectsPerPage_)
+        throw OAException(OAException::E_NO_MEMORY, "allocate_new_page: No More Available Pages");
+
+}
+
 // Take an object from the free list and give it to the client (simulates new)
 // Throws an exception if the object can't be allocated. (Memory allocation problem)
 void *ObjectAllocator::Allocate() throw(OAException) {
     char* allocation = NULL;
 
-    if(OAStats_.ObjectsInUse_ >= Config_.MaxPages_ * Config_.ObjectsPerPage_)
-        throw OAException(OAException::E_NO_MEMORY, "No more room sir");
-
+    ValidateAllocate();
     OAStatsAllocate(OAStats_);
 
     if(!Config_.UseCPPMemManager_) {
@@ -65,15 +84,13 @@ void *ObjectAllocator::Allocate() throw(OAException) {
         free_objects.pop_back();
         used_objects.push_back(allocation);
     } else {
-        try {
-            allocation = new char[OAStats_.ObjectSize_];
-        }
-        catch (std::bad_alloc &) {
-            throw OAException(OAException::E_NO_MEMORY, "allocate_new_page: No system memory available.");
-        }
-
+        allocation = safe_allocate(OAStats_.ObjectSize_);
     }
     used_objects.push_back(allocation);
+
+    if(Config_.DebugOn_) {
+        memset(allocation, ALLOCATED_PATTERN, OAStats_.ObjectSize_);
+    }
     return allocation;
 }
 
@@ -107,7 +124,8 @@ void ObjectAllocator::ValidateFree(const void *Object) const throw(OAException) 
     if(! list_has(used_objects, Object))
         throw OAException(OAException::E_BAD_ADDRESS, "Bad Address");
 
-    //if(! Object % Config_.Alignment_)
+    // FIXME
+    //if(Config_.Alignment_ > 0 && Object % (void*)Config_.Alignment_ == 0)
     //   throw OAException(OAException::E_BAD_BOUNDARY, "Bad Boundary");
 }
 
@@ -117,9 +135,14 @@ void ObjectAllocator::Free(void *Object) throw(OAException) {
     // Throw any exceptions for invalid frees
     ValidateFree(Object);
     OAStatsFree(OAStats_);
+
     if(!Config_.UseCPPMemManager_){
         int index = list_find( used_objects, Object);
         used_objects.erase(used_objects.begin() + index);
+
+        if(Config_.DebugOn_) {
+            memset(Object, FREED_PATTERN, OAStats_.ObjectSize_);
+        }
 
         free_objects.push_back(Object);
     }
@@ -130,15 +153,15 @@ void ObjectAllocator::Free(void *Object) throw(OAException) {
 // Calls the callback fn for each block still in use
 unsigned ObjectAllocator::DumpMemoryInUse(DUMPCALLBACK fn) const {
     for( unsigned i = 0; i < used_objects.size(); i++)
-        fn(used_objects[i],i);
-    return 1;
+        fn(used_objects[i], OAStats_.ObjectSize_);
+    return 0;
 }
 
 // Calls the callback fn for each block that is potentially corrupted
 unsigned ObjectAllocator::ValidatePages(VALIDATECALLBACK fn) const {
-    //TODO
-    fn(NULL,0);
-    return 1;
+    for( unsigned i = 0; i < used_objects.size(); i++)
+        fn(used_objects[i], OAStats_.ObjectSize_);
+    return 0;
 }
 
 // Frees all empty pages

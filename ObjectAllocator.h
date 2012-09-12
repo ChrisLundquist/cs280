@@ -158,6 +158,7 @@ class ObjectAllocator
 
     // Other private fields and methods...
     void ValidateFree(const void *Object) const throw(OAException);
+    inline void ValidateAllocate() const throw(OAException);
     void new_page();
     std::vector<void*> used_objects;
     std::vector<void*> free_objects;

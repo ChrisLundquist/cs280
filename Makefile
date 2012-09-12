@@ -5,6 +5,9 @@ test: test1
 test1: all
 	./test1.exe
 
+	#./test1.exe > output1.txt
+	#diff output1 sample-output.txt
+
 test2:
 	./test2.exe
 
