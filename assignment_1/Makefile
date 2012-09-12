@@ -21,3 +21,4 @@ driver2:
 
 clean:
 	rm *.exe
+	rm -rf *.dSYM
