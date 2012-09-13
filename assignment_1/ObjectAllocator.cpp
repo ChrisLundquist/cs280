@@ -72,23 +72,23 @@ void ObjectAllocator::new_page() {
     }
 }
 
-inline char* ObjectAllocator::object_to_header(char* object) {
+inline char* ObjectAllocator::object_to_header(char* object) const {
     return object_to_left_pad(object) - Config_.HeaderBlocks_;
 }
 
-inline char* ObjectAllocator::object_to_left_pad(char* object) {
+inline char* ObjectAllocator::object_to_left_pad(char* object) const{
     return object - Config_.PadBytes_;
-}
+ }
 
-inline char* ObjectAllocator::object_to_right_pad(char* object) {
+inline char* ObjectAllocator::object_to_right_pad(char* object) const {
     return object + object_size();
 }
 
-inline char* ObjectAllocator::allocation_to_object(char* allocation) {
+inline char* ObjectAllocator::allocation_to_object(char* allocation) const {
     return allocation + Config_.PadBytes_ + Config_.HeaderBlocks_;
 }
 
-inline char* ObjectAllocator::object_to_allocation(char* object) {
+inline char* ObjectAllocator::object_to_allocation(char* object) const {
     return object - Config_.PadBytes_ - Config_.HeaderBlocks_;
 }
 
@@ -133,7 +133,7 @@ inline static void OAStatsFree(OAStats& stats) {
     stats.ObjectsInUse_--;
 }
 
-inline bool list_has( std::vector<void*> list, const void* object) {
+inline bool list_has( const std::vector<void*>& list, const void* object) {
     for(unsigned i = 0; i < list.size(); i++) {
         if(list[i] == object)
             return true;
@@ -141,7 +141,7 @@ inline bool list_has( std::vector<void*> list, const void* object) {
     return false;
 }
 
-inline int list_find( std::vector<void*> list, const void* object) {
+inline int list_find( const std::vector<void*>& list, const void* object) {
     for(unsigned i = 0; i < list.size(); i++)
         if(list[i] == object)
             return i;
@@ -195,9 +195,15 @@ unsigned ObjectAllocator::DumpMemoryInUse(DUMPCALLBACK fn) const {
 
 // Calls the callback fn for each block that is potentially corrupted
 unsigned ObjectAllocator::ValidatePages(VALIDATECALLBACK fn) const {
-    for( unsigned i = 0; i < used_objects.size(); i++)
-        fn(used_objects[i], total_object_size());
-    return 0;
+    unsigned bad = 0;
+    for( unsigned i = 0; i < used_objects.size(); i++) {
+        char* object = (char*) used_objects[i];
+//        char* left_pad = object_to_left_pad(object);
+//        char* right_pad = object_to_right_pad(object);
+//        if(memcmp())
+            fn(object, total_object_size());
+    }
+    return bad;
 }
 
 // Frees all empty pages
