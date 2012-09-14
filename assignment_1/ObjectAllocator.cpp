@@ -46,8 +46,7 @@ inline static void OAStatsAllocate(OAStats& stats) {
 inline static char* safe_allocate(unsigned size) {
     try {
         return new char[size];
-    }
-    catch (std::bad_alloc &) {
+    } catch (std::bad_alloc &) {
         throw OAException(OAException::E_NO_MEMORY, "allocate_new_page: No system memory available.");
     }
 }
@@ -72,7 +71,7 @@ void ObjectAllocator::new_page() {
     OAStatsNewPage(OAStats_, Config_);
 
     for( unsigned i = 0; i < Config_.ObjectsPerPage_; i++) {
-        char* object = allocation + i * total_object_size();
+        char* object = allocation_to_object(allocation + i * total_object_size());
         free_objects.push_back(object);
     }
 }
@@ -106,34 +105,34 @@ inline void ObjectAllocator::ValidateAllocate() const throw(OAException) {
 // Take an object from the free list and give it to the client (simulates new)
 // Throws an exception if the object can't be allocated. (Memory allocation problem)
 void *ObjectAllocator::Allocate() throw(OAException) {
-    char* allocation = NULL;
     char* object = NULL;
 
     ValidateAllocate();
     OAStatsAllocate(OAStats_);
 
     if(Config_.UseCPPMemManager_ == false) {
-        if(free_objects.size() == 0)
+        if(free_objects.size() == 0) // Need a new page
             new_page();
-        allocation = (char*)free_objects.back();
+
+        object = free_objects.back();
         free_objects.pop_back();
-        used_objects.push_back(allocation);
-        object = allocation_to_object(allocation);
+
+        if(Config_.DebugOn_) { // And we are active?
+            memset(object_to_allocation(object), ALLOCATED_PATTERN, total_object_size());
+            memset(object_to_left_pad(object),  PAD_PATTERN, Config_.PadBytes_);
+            memset(object_to_right_pad(object), PAD_PATTERN, Config_.PadBytes_);
+        }
+
+        if(Config_.HeaderBlocks_) {
+            *(object_to_header(object)) = IN_USE;
+        }
+
     } else {
-        allocation = safe_allocate(total_object_size());
+        object = safe_allocate(total_object_size());
     }
-    used_objects.push_back(allocation);
+    used_objects.push_back(object);
 
-    if(Config_.DebugOn_) { // And we are active FIXME
-        memset(allocation, ALLOCATED_PATTERN, total_object_size());
-        memset(object_to_left_pad(object),  PAD_PATTERN, Config_.PadBytes_);
-        memset(object_to_right_pad(object), PAD_PATTERN, Config_.PadBytes_);
-    }
-
-    if(Config_.HeaderBlocks_) {
-        *(object_to_header(object)) = IN_USE;
-    }
-    return allocation_to_object(allocation);
+    return object;
 }
 
 inline static void OAStatsFree(OAStats& stats) {
@@ -194,7 +193,7 @@ inline bool ObjectAllocator::CorruptPadding(char* const object) const throw(OAEx
 // Returns an object to the free list for the client (simulates delete)
 // Throws an exception if the object can't be freed. (Invalid object)
 void ObjectAllocator::Free(void *Object) throw(OAException) {
-    char* char_object = object_to_allocation(reinterpret_cast<char*>(Object));
+    char* char_object = reinterpret_cast<char*>(Object);
 
     // Throw any exceptions for invalid frees
     ValidateFree(char_object);
@@ -204,7 +203,8 @@ void ObjectAllocator::Free(void *Object) throw(OAException) {
         if(Config_.DebugOn_) {
             if(CorruptPadding(char_object))
                 throw OAException(OAException::E_CORRUPTED_BLOCK, "Corrupt Block");
-            memset(char_object, FREED_PATTERN, total_object_size());
+
+            memset(object_to_allocation(char_object), FREED_PATTERN, total_object_size());
         }
 
         if(Config_.HeaderBlocks_) {
@@ -231,7 +231,7 @@ unsigned ObjectAllocator::ValidatePages(VALIDATECALLBACK fn) const {
     unsigned bad = 0;
 
     for( unsigned i = 0; i < used_objects.size(); i++) {
-        char* object = reinterpret_cast<char *>(used_objects[i]);
+        char* object = used_objects[i];
         if( CorruptPadding(object) ) {
             fn(object, total_object_size());
             bad++;
