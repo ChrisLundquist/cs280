@@ -13,6 +13,10 @@ test2:
 
 all: driver1 driver2
 
+valgrind:
+	valgrind --leak-check=full --show-reachable=yes ./test1.exe
+	valgrind --leak-check=full --show-reachable=yes ./test2.exe
+
 driver1:
 	g++ -o test1.exe $(CFLAGS) driver-sample.cpp ObjectAllocator.cpp PRNG.cpp -Werror -Wall -Wextra -Wconversion -ansi -pedantic
 

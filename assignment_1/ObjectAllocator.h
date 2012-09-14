@@ -126,7 +126,7 @@ class ObjectAllocator
     void *Allocate() throw(OAException);
 
     // Returns an object to the free list for the client (simulates delete)
-    // Throws an exception if the the object can't be freed. (Invalid object)
+    // Throws an exception if the object can't be freed. (Invalid object)
     void Free(void *Object) throw(OAException);
 
     // Calls the callback fn for each block still in use
@@ -157,8 +157,9 @@ class ObjectAllocator
     ObjectAllocator &operator=(const ObjectAllocator &oa);
 
     // Other private fields and methods...
-    void ValidateFree(const void *Object) const throw(OAException);
+    void ValidateFree(char *Object) const throw(OAException);
     inline void ValidateAllocate() const throw(OAException);
+    inline bool CorruptPadding(char* const Object) const throw(OAException);
     inline char* object_to_header(char*) const;
     inline char* object_to_left_pad(char*) const;
     inline char* object_to_right_pad(char*) const;
@@ -167,9 +168,9 @@ class ObjectAllocator
     inline unsigned total_object_size() const;
     inline unsigned object_size() const;
     void new_page();
-    std::vector<void*> used_objects;
-    std::vector<void*> free_objects;
-    std::vector<void*> pages;
+    std::vector<char*> used_objects;
+    std::vector<char*> free_objects;
+    std::vector<char*> pages;
 };
 
 #endif

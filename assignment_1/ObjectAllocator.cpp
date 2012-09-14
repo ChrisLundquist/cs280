@@ -13,9 +13,9 @@ ObjectAllocator::ObjectAllocator(unsigned ObjectSize, const OAConfig& config) th
         Config_.ObjectsPerPage_ * total_object_size() +
         sizeof(GenericObject);
 
-    used_objects = std::vector<void*>();
-    free_objects = std::vector<void*>();
-    pages = std::vector<void*>();
+    used_objects = std::vector<char*>();
+    free_objects = std::vector<char*>();
+    pages = std::vector<char*>();
 
     new_page();
 }
@@ -30,9 +30,10 @@ inline unsigned ObjectAllocator::object_size() const {
 
 // Destroys the ObjectManager (never throws)
 ObjectAllocator::~ObjectAllocator() throw() {
-    for(unsigned i = 0; i < pages.size(); i++){
-        delete[] (char*) pages[i];
-    }
+    if(Config_.UseCPPMemManager_ == false)
+        for(unsigned i = 0; i < pages.size(); i++) {
+            delete[] pages[i];
+        }
 }
 
 inline static void OAStatsAllocate(OAStats& stats) {
@@ -57,6 +58,10 @@ inline static void OAStatsNewPage(OAStats& stats, OAConfig& config) {
 }
 
 void ObjectAllocator::new_page() {
+    // Do nothing if our manager is turned off
+    if(Config_.UseCPPMemManager_ == true)
+        return;
+
     char* allocation = safe_allocate(OAStats_.PageSize_);
     if(Config_.DebugOn_) {
         memset(allocation, UNALLOCATED_PATTERN, OAStats_.PageSize_);
@@ -78,7 +83,7 @@ inline char* ObjectAllocator::object_to_header(char* object) const {
 
 inline char* ObjectAllocator::object_to_left_pad(char* object) const{
     return object - Config_.PadBytes_;
- }
+}
 
 inline char* ObjectAllocator::object_to_right_pad(char* object) const {
     return object + object_size();
@@ -93,8 +98,9 @@ inline char* ObjectAllocator::object_to_allocation(char* object) const {
 }
 
 inline void ObjectAllocator::ValidateAllocate() const throw(OAException) {
-    if(Config_.MaxPages_ > 0 && OAStats_.ObjectsInUse_ >= Config_.MaxPages_ * Config_.ObjectsPerPage_)
-        throw OAException(OAException::E_NO_MEMORY, "allocate_new_page: No More Available Pages");
+    if(Config_.UseCPPMemManager_ == false)
+        if(Config_.MaxPages_ > 0 && OAStats_.ObjectsInUse_ >= Config_.MaxPages_ * Config_.ObjectsPerPage_)
+            throw OAException(OAException::E_NO_MEMORY, "allocate_new_page: No More Available Pages");
 }
 
 // Take an object from the free list and give it to the client (simulates new)
@@ -106,7 +112,7 @@ void *ObjectAllocator::Allocate() throw(OAException) {
     ValidateAllocate();
     OAStatsAllocate(OAStats_);
 
-    if(!Config_.UseCPPMemManager_) {
+    if(Config_.UseCPPMemManager_ == false) {
         if(free_objects.size() == 0)
             new_page();
         allocation = (char*)free_objects.back();
@@ -122,6 +128,9 @@ void *ObjectAllocator::Allocate() throw(OAException) {
         memset(allocation, ALLOCATED_PATTERN, total_object_size());
         memset(object_to_left_pad(object),  PAD_PATTERN, Config_.PadBytes_);
         memset(object_to_right_pad(object), PAD_PATTERN, Config_.PadBytes_);
+    }
+
+    if(Config_.HeaderBlocks_) {
         *(object_to_header(object)) = IN_USE;
     }
     return allocation_to_object(allocation);
@@ -133,7 +142,7 @@ inline static void OAStatsFree(OAStats& stats) {
     stats.ObjectsInUse_--;
 }
 
-inline bool list_has( const std::vector<void*>& list, const void* object) {
+inline bool list_has( const std::vector<char*>& list, const char* object) {
     for(unsigned i = 0; i < list.size(); i++) {
         if(list[i] == object)
             return true;
@@ -141,16 +150,22 @@ inline bool list_has( const std::vector<void*>& list, const void* object) {
     return false;
 }
 
-inline int list_find( const std::vector<void*>& list, const void* object) {
+inline int list_find( const std::vector<char*>& list, const char* object) {
     for(unsigned i = 0; i < list.size(); i++)
         if(list[i] == object)
             return i;
     return -1;
 }
 
-void ObjectAllocator::ValidateFree(const void *Object) const throw(OAException) {
+void ObjectAllocator::ValidateFree(char *Object) const throw(OAException) {
+    if(Config_.UseCPPMemManager_)
+        return;
+
     // Make sure the pointer hasn't been freed already
-    if(list_has(free_objects, Object))
+    if(Config_.HeaderBlocks_ &&
+            *(object_to_header(Object)) == NOT_IN_USE)
+        throw OAException(OAException::E_MULTIPLE_FREE, "Multiple Free");
+    else if(list_has(free_objects, Object))
         throw OAException(OAException::E_MULTIPLE_FREE, "Multiple Free");
 
     // Make sure the pointer came from us
@@ -158,32 +173,50 @@ void ObjectAllocator::ValidateFree(const void *Object) const throw(OAException) 
         throw OAException(OAException::E_BAD_ADDRESS, "Bad Address");
 
     // FIXME
-    //if(Config_.Alignment_ > 0 && Object % (void*)Config_.Alignment_ == 0)
+    //if(Config_.Alignment_ > 0 && Object % (char*)Config_.Alignment_ == 0)
     //   throw OAException(OAException::E_BAD_BOUNDARY, "Bad Boundary");
+}
+
+inline bool ObjectAllocator::CorruptPadding(char* const object) const throw(OAException) {
+    char* left_pad = object_to_left_pad(object);
+    char* right_pad = object_to_right_pad(object);
+
+    for( unsigned i = 0; i < Config_.PadBytes_; i++)
+        if(*(left_pad + i) ^ PAD_PATTERN)
+            return true;
+
+    for( unsigned i = 0; i < Config_.PadBytes_; i++)
+        if(*(right_pad + i) ^ PAD_PATTERN)
+            return true;
+    return false;
 }
 
 // Returns an object to the free list for the client (simulates delete)
 // Throws an exception if the object can't be freed. (Invalid object)
 void ObjectAllocator::Free(void *Object) throw(OAException) {
-    if(Config_.UseCPPMemManager_ == false)
-        Object = object_to_allocation((char*)Object);
+    char* char_object = object_to_allocation(reinterpret_cast<char*>(Object));
 
     // Throw any exceptions for invalid frees
-    ValidateFree(Object);
+    ValidateFree(char_object);
     OAStatsFree(OAStats_);
 
-    if(Config_.UseCPPMemManager_ == false){
-        int index = list_find( used_objects, Object);
-        used_objects.erase(used_objects.begin() + index);
-
+    if(Config_.UseCPPMemManager_ == false) {
         if(Config_.DebugOn_) {
-            memset(Object, FREED_PATTERN, total_object_size());
+            if(CorruptPadding(char_object))
+                throw OAException(OAException::E_CORRUPTED_BLOCK, "Corrupt Block");
+            memset(char_object, FREED_PATTERN, total_object_size());
         }
 
-        free_objects.push_back(Object);
+        if(Config_.HeaderBlocks_) {
+            *(object_to_header(char_object)) = NOT_IN_USE;
+        }
+        int index = list_find( used_objects, char_object);
+        used_objects.erase(used_objects.begin() + index);
+
+        free_objects.push_back(char_object);
     }
     else
-        delete[] (char*)Object;
+        delete[] char_object;
 }
 
 // Calls the callback fn for each block still in use
@@ -196,13 +229,15 @@ unsigned ObjectAllocator::DumpMemoryInUse(DUMPCALLBACK fn) const {
 // Calls the callback fn for each block that is potentially corrupted
 unsigned ObjectAllocator::ValidatePages(VALIDATECALLBACK fn) const {
     unsigned bad = 0;
+
     for( unsigned i = 0; i < used_objects.size(); i++) {
-        char* object = (char*) used_objects[i];
-//        char* left_pad = object_to_left_pad(object);
-//        char* right_pad = object_to_right_pad(object);
-//        if(memcmp())
+        char* object = reinterpret_cast<char *>(used_objects[i]);
+        if( CorruptPadding(object) ) {
             fn(object, total_object_size());
+            bad++;
+        }
     }
+
     return bad;
 }
 

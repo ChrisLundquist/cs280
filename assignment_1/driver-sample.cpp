@@ -1663,13 +1663,13 @@ int main()
     cout << endl;
 #endif
     cout << "============================== Test free checking (stress)..." << endl;
-    //StressFreeChecking();
+    StressFreeChecking();
     cout << endl;
     cout << "============================== Test stress using new/delete..." << endl;
-    //Stress(true);
+    Stress(true);
     cout << endl;
     cout << "============================== Test stress using allocator..." << endl;
-    //Stress(false);
+    Stress(false);
   }
   catch (...)
   {
