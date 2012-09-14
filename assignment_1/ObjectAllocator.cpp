@@ -142,10 +142,9 @@ inline static void OAStatsFree(OAStats& stats) {
 }
 
 inline bool list_has( const std::vector<char*>& list, const char* object) {
-    for(unsigned i = 0; i < list.size(); i++) {
+    for(unsigned i = 0; i < list.size(); i++)
         if(list[i] == object)
             return true;
-    }
     return false;
 }
 
@@ -222,7 +221,7 @@ void ObjectAllocator::Free(void *Object) throw(OAException) {
 // Calls the callback fn for each block still in use
 unsigned ObjectAllocator::DumpMemoryInUse(DUMPCALLBACK fn) const {
     for( unsigned i = 0; i < used_objects.size(); i++)
-        fn(used_objects[i], total_object_size());
+        fn(object_to_allocation(used_objects[i]), total_object_size());
     return 0;
 }
 
@@ -233,7 +232,7 @@ unsigned ObjectAllocator::ValidatePages(VALIDATECALLBACK fn) const {
     for( unsigned i = 0; i < used_objects.size(); i++) {
         char* object = used_objects[i];
         if( CorruptPadding(object) ) {
-            fn(object, total_object_size());
+            fn(object_to_allocation(object), total_object_size());
             bad++;
         }
     }
