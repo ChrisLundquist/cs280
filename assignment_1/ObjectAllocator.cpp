@@ -62,14 +62,20 @@ void ObjectAllocator::new_page() {
         return;
 
     char* allocation = safe_allocate(OAStats_.PageSize_);
+
     if(Config_.DebugOn_) {
         memset(allocation, UNALLOCATED_PATTERN, OAStats_.PageSize_);
     }
 
     pages.push_back(allocation);
 
+    pages[OAStats_.PagesInUse_] = allocation;
+
     OAStatsNewPage(OAStats_, Config_);
 
+    memset(allocation, 0, sizeof(GenericObject*));
+
+    allocation += sizeof(GenericObject*);
     for( unsigned i = 0; i < Config_.ObjectsPerPage_; i++) {
         char* object = allocation_to_object(allocation + i * total_object_size());
         free_objects.push_back(object);
@@ -261,7 +267,6 @@ const void *ObjectAllocator::GetFreeList() const {
 }
 
 const void *ObjectAllocator::GetPageList() const {
-    return NULL;
     //TODO
     return pages.front();
 }
