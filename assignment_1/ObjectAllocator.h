@@ -157,20 +157,20 @@ class ObjectAllocator
     ObjectAllocator &operator=(const ObjectAllocator &oa);
 
     // Other private fields and methods...
-    void ValidateFree(char *Object) const throw(OAException);
+    void ValidateFree(unsigned char *Object) const throw(OAException);
     inline void ValidateAllocate() const throw(OAException);
-    inline bool CorruptPadding(char* const Object) const throw(OAException);
-    inline char* object_to_header(char*) const;
-    inline char* object_to_left_pad(char*) const;
-    inline char* object_to_right_pad(char*) const;
-    inline char* allocation_to_object(char*) const;
-    inline char* object_to_allocation(char*) const;
+    inline bool CorruptPadding(unsigned char* const Object) const throw(OAException);
+    inline unsigned char* object_to_header(unsigned char*) const;
+    inline unsigned char* object_to_left_pad(unsigned char*) const;
+    inline unsigned char* object_to_right_pad(unsigned char*) const;
+    inline unsigned char* allocation_to_object(unsigned char*) const;
+    inline unsigned char* object_to_allocation(unsigned char*) const;
     inline unsigned total_object_size() const;
     inline unsigned object_size() const;
     void new_page();
-    std::vector<char*> used_objects;
-    std::vector<char*> free_objects;
-    std::vector<char*> pages;
+    std::vector<unsigned char*> used_objects;
+    std::vector<unsigned char*> free_objects;
+    std::vector<unsigned char*> pages;
 };
 
 #endif

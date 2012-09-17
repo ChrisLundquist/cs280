@@ -11,11 +11,11 @@ ObjectAllocator::ObjectAllocator(unsigned ObjectSize, const OAConfig& config) th
     OAStats_.ObjectSize_ = ObjectSize;
     OAStats_.PageSize_ =
         Config_.ObjectsPerPage_ * total_object_size() +
-        sizeof(GenericObject);
+        sizeof(GenericObject*);
 
-    used_objects = std::vector<char*>();
-    free_objects = std::vector<char*>();
-    pages = std::vector<char*>();
+    used_objects = std::vector<unsigned char*>();
+    free_objects = std::vector<unsigned char*>();
+    pages = std::vector<unsigned char*>();
 
     new_page();
 }
@@ -43,9 +43,9 @@ inline static void OAStatsAllocate(OAStats& stats) {
     stats.MostObjects_ = MAX(stats.MostObjects_, stats.ObjectsInUse_);
 }
 
-inline static char* safe_allocate(unsigned size) {
+inline static unsigned char* safe_allocate(unsigned size) {
     try {
-        return new char[size];
+        return new unsigned char[size];
     } catch (std::bad_alloc &) {
         throw OAException(OAException::E_NO_MEMORY, "allocate_new_page: No system memory available.");
     }
@@ -61,7 +61,7 @@ void ObjectAllocator::new_page() {
     if(Config_.UseCPPMemManager_ == true)
         return;
 
-    char* allocation = safe_allocate(OAStats_.PageSize_);
+    unsigned char* allocation = safe_allocate(OAStats_.PageSize_);
 
     if(Config_.DebugOn_) {
         memset(allocation, UNALLOCATED_PATTERN, OAStats_.PageSize_);
@@ -77,28 +77,28 @@ void ObjectAllocator::new_page() {
 
     allocation += sizeof(GenericObject*);
     for( unsigned i = 0; i < Config_.ObjectsPerPage_; i++) {
-        char* object = allocation_to_object(allocation + i * total_object_size());
+        unsigned char* object = allocation_to_object(allocation + i * total_object_size());
         free_objects.push_back(object);
     }
 }
 
-inline char* ObjectAllocator::object_to_header(char* object) const {
+inline unsigned char* ObjectAllocator::object_to_header(unsigned char* object) const {
     return object_to_left_pad(object) - Config_.HeaderBlocks_;
 }
 
-inline char* ObjectAllocator::object_to_left_pad(char* object) const{
+inline unsigned char* ObjectAllocator::object_to_left_pad(unsigned char* object) const{
     return object - Config_.PadBytes_;
 }
 
-inline char* ObjectAllocator::object_to_right_pad(char* object) const {
+inline unsigned char* ObjectAllocator::object_to_right_pad(unsigned char* object) const {
     return object + object_size();
 }
 
-inline char* ObjectAllocator::allocation_to_object(char* allocation) const {
+inline unsigned char* ObjectAllocator::allocation_to_object(unsigned char* allocation) const {
     return allocation + Config_.PadBytes_ + Config_.HeaderBlocks_;
 }
 
-inline char* ObjectAllocator::object_to_allocation(char* object) const {
+inline unsigned char* ObjectAllocator::object_to_allocation(unsigned char* object) const {
     return object - Config_.PadBytes_ - Config_.HeaderBlocks_;
 }
 
@@ -111,7 +111,7 @@ inline void ObjectAllocator::ValidateAllocate() const throw(OAException) {
 // Take an object from the free list and give it to the client (simulates new)
 // Throws an exception if the object can't be allocated. (Memory allocation problem)
 void *ObjectAllocator::Allocate() throw(OAException) {
-    char* object = NULL;
+    unsigned char* object = NULL;
 
     ValidateAllocate();
     OAStatsAllocate(OAStats_);
@@ -147,21 +147,21 @@ inline static void OAStatsFree(OAStats& stats) {
     stats.ObjectsInUse_--;
 }
 
-inline bool list_has( const std::vector<char*>& list, const char* object) {
+inline bool list_has( const std::vector<unsigned char*>& list, const unsigned char* object) {
     for(unsigned i = 0; i < list.size(); i++)
         if(list[i] == object)
             return true;
     return false;
 }
 
-inline int list_find( const std::vector<char*>& list, const char* object) {
+inline int list_find( const std::vector<unsigned char*>& list, const unsigned char* object) {
     for(unsigned i = 0; i < list.size(); i++)
         if(list[i] == object)
             return i;
     return -1;
 }
 
-void ObjectAllocator::ValidateFree(char *Object) const throw(OAException) {
+void ObjectAllocator::ValidateFree(unsigned char *Object) const throw(OAException) {
     if(Config_.UseCPPMemManager_)
         return;
 
@@ -176,21 +176,21 @@ void ObjectAllocator::ValidateFree(char *Object) const throw(OAException) {
     if(! list_has(used_objects, Object))
         throw OAException(OAException::E_BAD_ADDRESS, "Bad Address");
 
-    // FIXME
-    //if(Config_.Alignment_ > 0 && Object % (char*)Config_.Alignment_ == 0)
+    // TODO Find what page the object is on
+    //if( (Object - page) % total_object_size() != 0)
     //   throw OAException(OAException::E_BAD_BOUNDARY, "Bad Boundary");
 }
 
-inline bool ObjectAllocator::CorruptPadding(char* const object) const throw(OAException) {
-    char* left_pad = object_to_left_pad(object);
-    char* right_pad = object_to_right_pad(object);
+inline bool ObjectAllocator::CorruptPadding(unsigned char* const object) const throw(OAException) {
+    unsigned char* left_pad = object_to_left_pad(object);
+    unsigned char* right_pad = object_to_right_pad(object);
 
     for( unsigned i = 0; i < Config_.PadBytes_; i++)
-        if(*(left_pad + i) ^ PAD_PATTERN)
+        if(*(left_pad + i) != PAD_PATTERN)
             return true;
 
     for( unsigned i = 0; i < Config_.PadBytes_; i++)
-        if(*(right_pad + i) ^ PAD_PATTERN)
+        if(*(right_pad + i) != PAD_PATTERN)
             return true;
     return false;
 }
@@ -198,7 +198,7 @@ inline bool ObjectAllocator::CorruptPadding(char* const object) const throw(OAEx
 // Returns an object to the free list for the client (simulates delete)
 // Throws an exception if the object can't be freed. (Invalid object)
 void ObjectAllocator::Free(void *Object) throw(OAException) {
-    char* char_object = reinterpret_cast<char*>(Object);
+    unsigned char* char_object = reinterpret_cast<unsigned char*>(Object);
 
     // Throw any exceptions for invalid frees
     ValidateFree(char_object);
@@ -236,7 +236,7 @@ unsigned ObjectAllocator::ValidatePages(VALIDATECALLBACK fn) const {
     unsigned bad = 0;
 
     for( unsigned i = 0; i < used_objects.size(); i++) {
-        char* object = used_objects[i];
+        unsigned char* object = used_objects[i];
         if( CorruptPadding(object) ) {
             fn(object_to_allocation(object), total_object_size());
             bad++;
