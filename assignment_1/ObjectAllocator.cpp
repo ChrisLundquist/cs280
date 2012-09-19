@@ -179,7 +179,7 @@ void ObjectAllocator::ValidateFree(unsigned char *Object) const throw(OAExceptio
         return;
 
     // Make sure the pointer hasn't been freed already
-    if(CheckHeader(Object, IN_USE))
+    if(CheckHeader(Object, NOT_IN_USE))
         throw OAException(OAException::E_MULTIPLE_FREE, "Multiple Free");
     else if(list_has(free_objects, Object))
         throw OAException(OAException::E_MULTIPLE_FREE, "Multiple Free");
