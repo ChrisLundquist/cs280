@@ -238,9 +238,9 @@ void ObjectAllocator::Free(void *Object) throw(OAException) {
 
 // Calls the callback fn for each block still in use
 unsigned ObjectAllocator::DumpMemoryInUse(DUMPCALLBACK fn) const {
-    for( unsigned i = used_objects.size() - 1; i >= 0; i--)
-        fn(object_to_allocation(used_objects[i]), total_object_size());
-    return used_objects.size();;
+    for( unsigned i = used_objects.size(); i > 0; i--)
+        fn(object_to_allocation(used_objects[i - 1]), total_object_size());
+    return used_objects.size();
 }
 
 // Calls the callback fn for each block that is potentially corrupted

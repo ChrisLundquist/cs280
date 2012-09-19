@@ -6,8 +6,8 @@ using std::cout;
 using std::endl;
 using std::printf;
 
-#define SHOWADDRESS1
-#define SHOWADDRESS2
+//#define SHOWADDRESS1
+//#define SHOWADDRESS2
 //#define SHOWREAL
 //#define SHOW_EXCEPTIONS
 
