@@ -76,9 +76,10 @@ void ObjectAllocator::new_page() {
         unsigned char* object = allocation_to_object(allocation + i * total_object_size());
 
         if(Config_.DebugOn_) { // And we are active?
-            memset(object_to_allocation(object), UNALLOCATED_PATTERN, total_object_size());
+            memset(object, UNALLOCATED_PATTERN, OAStats_.ObjectSize_);
             memset(object_to_left_pad(object),  PAD_PATTERN, Config_.PadBytes_);
             memset(object_to_right_pad(object), PAD_PATTERN, Config_.PadBytes_);
+            memset(object_to_header(object), 0, Config_.HeaderBlocks_);
         }
 
         free_objects.push_back(object);
@@ -238,7 +239,7 @@ void ObjectAllocator::Free(void *Object) throw(OAException) {
 // Calls the callback fn for each block still in use
 unsigned ObjectAllocator::DumpMemoryInUse(DUMPCALLBACK fn) const {
     for( unsigned i = used_objects.size() - 1; i > 0; i--)
-        fn(used_objects[i], OAStats_.ObjectSize_);
+        fn(object_to_allocation(used_objects[i]), total_object_size());
     return 0;
 }
 
@@ -249,7 +250,7 @@ unsigned ObjectAllocator::ValidatePages(VALIDATECALLBACK fn) const {
     for( unsigned i = 0; i < used_objects.size(); i++) {
         unsigned char* object = used_objects[i];
         if( CorruptPadding(object) ) {
-            fn(object, OAStats_.ObjectSize_);
+            fn(object_to_allocation(object), total_object_size());
             bad++;
         }
     }
