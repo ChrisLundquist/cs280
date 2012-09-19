@@ -222,7 +222,7 @@ void ObjectAllocator::Free(void *Object) throw(OAException) {
             if(CorruptPadding(char_object))
                 throw OAException(OAException::E_CORRUPTED_BLOCK, "Corrupt Block");
 
-            memset(object_to_allocation(char_object), FREED_PATTERN, total_object_size());
+            memset(char_object, FREED_PATTERN, OAStats_.ObjectSize_);
         }
 
         MarkHeader(char_object, NOT_IN_USE);
