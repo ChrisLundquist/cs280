@@ -160,6 +160,8 @@ class ObjectAllocator
     void ValidateFree(unsigned char *Object) const throw(OAException);
     inline void ValidateAllocate() const throw(OAException);
     inline bool CorruptPadding(unsigned char* const Object) const throw(OAException);
+    inline void MarkHeader(unsigned char* object, unsigned char flag);
+    inline bool CheckHeader(unsigned char* object, unsigned char flag) const;
     inline unsigned char* object_to_header(unsigned char*) const;
     inline unsigned char* object_to_left_pad(unsigned char*) const;
     inline unsigned char* object_to_right_pad(unsigned char*) const;

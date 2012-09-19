@@ -63,10 +63,6 @@ void ObjectAllocator::new_page() {
 
     unsigned char* allocation = safe_allocate(OAStats_.PageSize_);
 
-    if(Config_.DebugOn_) {
-        memset(allocation, UNALLOCATED_PATTERN, OAStats_.PageSize_);
-    }
-
     pages.push_back(allocation);
 
     pages[OAStats_.PagesInUse_] = allocation;
@@ -78,6 +74,13 @@ void ObjectAllocator::new_page() {
     allocation += sizeof(GenericObject*);
     for( unsigned i = 0; i < Config_.ObjectsPerPage_; i++) {
         unsigned char* object = allocation_to_object(allocation + i * total_object_size());
+
+        if(Config_.DebugOn_) { // And we are active?
+            memset(object_to_allocation(object), UNALLOCATED_PATTERN, total_object_size());
+            memset(object_to_left_pad(object),  PAD_PATTERN, Config_.PadBytes_);
+            memset(object_to_right_pad(object), PAD_PATTERN, Config_.PadBytes_);
+        }
+
         free_objects.push_back(object);
     }
 }
@@ -108,6 +111,19 @@ inline void ObjectAllocator::ValidateAllocate() const throw(OAException) {
             throw OAException(OAException::E_NO_MEMORY, "allocate_new_page: No More Available Pages");
 }
 
+inline void ObjectAllocator::MarkHeader(unsigned char* object, unsigned char flag) {
+        if(Config_.HeaderBlocks_) {
+            *(object_to_left_pad(object) - 1)  = flag;
+        }
+}
+
+inline bool ObjectAllocator::CheckHeader(unsigned char* object, unsigned char flag) const {
+        if(Config_.HeaderBlocks_) {
+            return (*(object_to_left_pad(object) - 1)  == flag);
+        }
+        return false;
+}
+
 // Take an object from the free list and give it to the client (simulates new)
 // Throws an exception if the object can't be allocated. (Memory allocation problem)
 void *ObjectAllocator::Allocate() throw(OAException) {
@@ -123,15 +139,11 @@ void *ObjectAllocator::Allocate() throw(OAException) {
         object = free_objects.back();
         free_objects.pop_back();
 
-        if(Config_.DebugOn_) { // And we are active?
-            memset(object_to_allocation(object), ALLOCATED_PATTERN, total_object_size());
-            memset(object_to_left_pad(object),  PAD_PATTERN, Config_.PadBytes_);
-            memset(object_to_right_pad(object), PAD_PATTERN, Config_.PadBytes_);
+        if(Config_.DebugOn_) {
+            memset(object, ALLOCATED_PATTERN, OAStats_.ObjectSize_);
         }
 
-        if(Config_.HeaderBlocks_) {
-            *(object_to_header(object)) = IN_USE;
-        }
+        MarkHeader(object, IN_USE);
 
     } else {
         object = safe_allocate(total_object_size());
@@ -166,8 +178,7 @@ void ObjectAllocator::ValidateFree(unsigned char *Object) const throw(OAExceptio
         return;
 
     // Make sure the pointer hasn't been freed already
-    if(Config_.HeaderBlocks_ &&
-            *(object_to_header(Object)) == NOT_IN_USE)
+    if(CheckHeader(Object, IN_USE))
         throw OAException(OAException::E_MULTIPLE_FREE, "Multiple Free");
     else if(list_has(free_objects, Object))
         throw OAException(OAException::E_MULTIPLE_FREE, "Multiple Free");
@@ -205,6 +216,7 @@ void ObjectAllocator::Free(void *Object) throw(OAException) {
     OAStatsFree(OAStats_);
 
     if(Config_.UseCPPMemManager_ == false) {
+
         if(Config_.DebugOn_) {
             if(CorruptPadding(char_object))
                 throw OAException(OAException::E_CORRUPTED_BLOCK, "Corrupt Block");
@@ -212,10 +224,9 @@ void ObjectAllocator::Free(void *Object) throw(OAException) {
             memset(object_to_allocation(char_object), FREED_PATTERN, total_object_size());
         }
 
-        if(Config_.HeaderBlocks_) {
-            *(object_to_header(char_object)) = NOT_IN_USE;
-        }
-        int index = list_find( used_objects, char_object);
+        MarkHeader(char_object, NOT_IN_USE);
+
+        int index = list_find(used_objects, char_object);
         used_objects.erase(used_objects.begin() + index);
 
         free_objects.push_back(char_object);
@@ -226,8 +237,8 @@ void ObjectAllocator::Free(void *Object) throw(OAException) {
 
 // Calls the callback fn for each block still in use
 unsigned ObjectAllocator::DumpMemoryInUse(DUMPCALLBACK fn) const {
-    for( unsigned i = 0; i < used_objects.size(); i++)
-        fn(object_to_allocation(used_objects[i]), total_object_size());
+    for( unsigned i = used_objects.size() - 1; i > 0; i--)
+        fn(used_objects[i], OAStats_.ObjectSize_);
     return 0;
 }
 
@@ -238,7 +249,7 @@ unsigned ObjectAllocator::ValidatePages(VALIDATECALLBACK fn) const {
     for( unsigned i = 0; i < used_objects.size(); i++) {
         unsigned char* object = used_objects[i];
         if( CorruptPadding(object) ) {
-            fn(object_to_allocation(object), total_object_size());
+            fn(object, OAStats_.ObjectSize_);
             bad++;
         }
     }
