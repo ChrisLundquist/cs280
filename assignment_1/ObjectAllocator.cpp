@@ -65,7 +65,8 @@ void ObjectAllocator::new_page() {
 
     pages.push_back(allocation);
 
-    pages[OAStats_.PagesInUse_] = allocation;
+	// ????????
+    //pages[OAStats_.PagesInUse_] = allocation;
 
     OAStatsNewPage(OAStats_, Config_);
 
@@ -186,6 +187,11 @@ inline unsigned char* ObjectAllocator::object_to_page(unsigned char * object) co
 void ObjectAllocator::ValidateFree(unsigned char *Object) const throw(OAException) {
     if(Config_.UseCPPMemManager_)
         return;
+	unsigned char* page = object_to_page(Object);
+
+    // Make sure the pointer came from us
+    if( page == NULL)
+        throw OAException(OAException::E_BAD_ADDRESS, "Bad Address");
 
     // Make sure the pointer hasn't been freed already
     if(CheckHeader(Object, NOT_IN_USE))
@@ -193,13 +199,6 @@ void ObjectAllocator::ValidateFree(unsigned char *Object) const throw(OAExceptio
     else if(list_has(free_objects, Object))
         throw OAException(OAException::E_MULTIPLE_FREE, "Multiple Free");
 
-    unsigned char* page = object_to_page(Object);
-
-    // Make sure the pointer came from us
-    if( page == NULL)
-        throw OAException(OAException::E_BAD_ADDRESS, "Bad Address");
-
-    // TODO Find what page the object is on
     if( (Object - page) % total_object_size() != 0)
        throw OAException(OAException::E_BAD_BOUNDARY, "Bad Boundary");
 }
