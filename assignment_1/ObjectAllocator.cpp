@@ -174,6 +174,15 @@ inline int list_find( const std::vector<unsigned char*>& list, const unsigned ch
     return -1;
 }
 
+inline unsigned char* ObjectAllocator::object_to_page(unsigned char * object) const {
+    for(unsigned i = 0; i < pages.size(); i++) {
+        unsigned char* page = pages[i];
+        if(page < object && object < (page + OAStats_.PageSize_))
+            return page;
+    }
+    return NULL;
+}
+
 void ObjectAllocator::ValidateFree(unsigned char *Object) const throw(OAException) {
     if(Config_.UseCPPMemManager_)
         return;
@@ -184,13 +193,15 @@ void ObjectAllocator::ValidateFree(unsigned char *Object) const throw(OAExceptio
     else if(list_has(free_objects, Object))
         throw OAException(OAException::E_MULTIPLE_FREE, "Multiple Free");
 
+    unsigned char* page = object_to_page(Object);
+
     // Make sure the pointer came from us
-    if(! list_has(used_objects, Object))
+    if( page == NULL)
         throw OAException(OAException::E_BAD_ADDRESS, "Bad Address");
 
     // TODO Find what page the object is on
-    //if( (Object - page) % total_object_size() != 0)
-    //   throw OAException(OAException::E_BAD_BOUNDARY, "Bad Boundary");
+    if( (Object - page) % total_object_size() != 0)
+       throw OAException(OAException::E_BAD_BOUNDARY, "Bad Boundary");
 }
 
 inline bool ObjectAllocator::CorruptPadding(unsigned char* const object) const throw(OAException) {
