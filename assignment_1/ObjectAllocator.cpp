@@ -165,7 +165,7 @@ inline bool list_has( const List<unsigned char*>& list, const unsigned char* obj
     return false;
 }
 
-inline int list_find( const List<unsigned char*>& list, const unsigned char* object) {
+inline bool list_find( const List<unsigned char*>& list, const unsigned char* object) {
     for(unsigned i = 0; i < list.size(); i++)
         if(list[i] == object)
             return i;
@@ -197,6 +197,7 @@ void ObjectAllocator::ValidateFree(unsigned char *Object) const throw(OAExceptio
     // Make sure the pointer hasn't been freed already
     if(CheckHeader(Object, NOT_IN_USE))
         throw OAException(OAException::E_MULTIPLE_FREE, "Multiple Free");
+    //FIXME
     else if(list_has(free_objects, Object))
         throw OAException(OAException::E_MULTIPLE_FREE, "Multiple Free");
 
@@ -228,7 +229,6 @@ void ObjectAllocator::Free(void *Object) throw(OAException) {
     OAStatsFree(OAStats_);
 
     if(Config_.UseCPPMemManager_ == false) {
-
         if(Config_.DebugOn_) {
             if(CorruptPadding(char_object))
                 throw OAException(OAException::E_CORRUPTED_BLOCK, "Corrupt Block");
@@ -239,8 +239,8 @@ void ObjectAllocator::Free(void *Object) throw(OAException) {
         MarkHeader(char_object, NOT_IN_USE);
 
         // TODO
-        //int index = list_find(used_objects, char_object);
-        //used_objects.erase(used_objects.begin() + index);
+        int index = list_find(used_objects, char_object);
+        used_objects.erase(index);
 
         free_objects.push(char_object);
     }
@@ -250,8 +250,8 @@ void ObjectAllocator::Free(void *Object) throw(OAException) {
 
 // Calls the callback fn for each block still in use
 unsigned ObjectAllocator::DumpMemoryInUse(DUMPCALLBACK fn) const {
-    for( unsigned i = used_objects.size(); i > 0; i--)
-        fn(object_to_allocation(used_objects[i - 1]), total_object_size());
+    for( unsigned i = 0; i < used_objects.size(); i++)
+        fn(object_to_allocation(used_objects[i]), total_object_size());
     return used_objects.size();
 }
 
@@ -272,7 +272,7 @@ unsigned ObjectAllocator::ValidatePages(VALIDATECALLBACK fn) const {
 
 // Frees all empty pages
 unsigned ObjectAllocator::FreeEmptyPages() {
-    return 1;
+    return 0;
 }
 
 // Returns true if FreeEmptyPages and alignments are implemented

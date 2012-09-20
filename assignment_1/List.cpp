@@ -40,14 +40,20 @@ void List<T>::push(T value) {
 
 template <class T>
 void List<T>::erase(unsigned index) {
-    Node<T>* previous, target, next;
+    Node<T> *previous, *target, *next;
+
+    if(index > size_)
+        return;
 
     if(index == 0) {
         pop();
         return;
     }
 
-    previous = this[index - 1];
+    for(unsigned i = 0; i < index; i++){
+        previous = previous->next;
+    }
+
     target = previous->next;
     next = target->next;
 
