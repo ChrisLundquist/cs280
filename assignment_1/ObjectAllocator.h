@@ -168,6 +168,7 @@ class ObjectAllocator
     inline unsigned char* allocation_to_object(unsigned char*) const;
     inline unsigned char* object_to_allocation(unsigned char*) const;
     inline unsigned char* object_to_page(unsigned char *) const;
+	unsigned char* object_on_page(unsigned char* page, unsigned index) const;
     inline unsigned total_object_size() const;
     inline unsigned object_size() const;
     void new_page();

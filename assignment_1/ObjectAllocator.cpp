@@ -184,6 +184,10 @@ inline unsigned char* ObjectAllocator::object_to_page(unsigned char * object) co
     return NULL;
 }
 
+unsigned char* ObjectAllocator::object_on_page(unsigned char* page, unsigned index) const {
+	return (page + sizeof(GenericObject*) + index * total_object_size());
+}
+
 void ObjectAllocator::ValidateFree(unsigned char *Object) const throw(OAException) {
     if(Config_.UseCPPMemManager_)
         return;
@@ -199,7 +203,7 @@ void ObjectAllocator::ValidateFree(unsigned char *Object) const throw(OAExceptio
     else if(list_has(free_objects, Object))
         throw OAException(OAException::E_MULTIPLE_FREE, "Multiple Free");
 
-    if( (Object - page) % total_object_size() != 0)
+    if( (Object - object_on_page(page,0)) % total_object_size() != 0)
        throw OAException(OAException::E_BAD_BOUNDARY, "Bad Boundary");
 }
 
