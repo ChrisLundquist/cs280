@@ -42,7 +42,7 @@ template <class T>
 void List<T>::erase(unsigned index) {
     Node<T> *previous, *target, *next;
 
-    if(index > size_)
+    if(index >= size_)
         return;
 
     if(index == 0) {
@@ -50,12 +50,17 @@ void List<T>::erase(unsigned index) {
         return;
     }
 
-    for(unsigned i = 0; i < index; i++){
+	previous = head;
+
+    for(unsigned i = 0; i < index && previous->next; i++){
         previous = previous->next;
     }
 
     target = previous->next;
-    next = target->next;
+	if(target)
+        next = target->next;
+	else
+		next = NULL;
 
     previous->next = next;
 
