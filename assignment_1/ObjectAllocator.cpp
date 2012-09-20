@@ -13,9 +13,9 @@ ObjectAllocator::ObjectAllocator(unsigned ObjectSize, const OAConfig& config) th
         Config_.ObjectsPerPage_ * total_object_size() +
         sizeof(GenericObject*);
 
-    used_objects = std::vector<unsigned char*>();
-    free_objects = std::vector<unsigned char*>();
-    pages = std::vector<unsigned char*>();
+    used_objects = List<unsigned char*>();
+    free_objects = List<unsigned char*>();
+    pages = List<unsigned char*>();
 
     new_page();
 }
@@ -63,10 +63,7 @@ void ObjectAllocator::new_page() {
 
     unsigned char* allocation = safe_allocate(OAStats_.PageSize_);
 
-    pages.push_back(allocation);
-
-	// ????????
-    //pages[OAStats_.PagesInUse_] = allocation;
+    pages.push(allocation);
 
     OAStatsNewPage(OAStats_, Config_);
 
@@ -83,7 +80,7 @@ void ObjectAllocator::new_page() {
             memset(object_to_header(object), 0, Config_.HeaderBlocks_);
         }
 
-        free_objects.push_back(object);
+        free_objects.push(object);
     }
 }
 
@@ -138,8 +135,8 @@ void *ObjectAllocator::Allocate() throw(OAException) {
         if(free_objects.size() == 0) // Need a new page
             new_page();
 
-        object = free_objects.back();
-        free_objects.pop_back();
+        object = free_objects.front();
+        free_objects.pop();
 
         if(Config_.DebugOn_) {
             memset(object, ALLOCATED_PATTERN, OAStats_.ObjectSize_);
@@ -150,7 +147,7 @@ void *ObjectAllocator::Allocate() throw(OAException) {
     } else {
         object = safe_allocate(total_object_size());
     }
-    used_objects.push_back(object);
+    used_objects.push(object);
 
     return object;
 }
@@ -161,14 +158,14 @@ inline static void OAStatsFree(OAStats& stats) {
     stats.ObjectsInUse_--;
 }
 
-inline bool list_has( const std::vector<unsigned char*>& list, const unsigned char* object) {
+inline bool list_has( const List<unsigned char*>& list, const unsigned char* object) {
     for(unsigned i = 0; i < list.size(); i++)
         if(list[i] == object)
             return true;
     return false;
 }
 
-inline int list_find( const std::vector<unsigned char*>& list, const unsigned char* object) {
+inline int list_find( const List<unsigned char*>& list, const unsigned char* object) {
     for(unsigned i = 0; i < list.size(); i++)
         if(list[i] == object)
             return i;
@@ -241,10 +238,11 @@ void ObjectAllocator::Free(void *Object) throw(OAException) {
 
         MarkHeader(char_object, NOT_IN_USE);
 
-        int index = list_find(used_objects, char_object);
-        used_objects.erase(used_objects.begin() + index);
+        // TODO
+        //int index = list_find(used_objects, char_object);
+        //used_objects.erase(used_objects.begin() + index);
 
-        free_objects.push_back(char_object);
+        free_objects.push(char_object);
     }
     else
         delete[] char_object;

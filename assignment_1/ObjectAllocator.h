@@ -8,7 +8,7 @@
 #endif
 
 #include <string>
-#include <vector>
+#include "List.h"
 
 // If the client doesn't specify these:
 static const int DEFAULT_OBJECTS_PER_PAGE = 4;
@@ -172,9 +172,9 @@ class ObjectAllocator
     inline unsigned total_object_size() const;
     inline unsigned object_size() const;
     void new_page();
-    std::vector<unsigned char*> used_objects;
-    std::vector<unsigned char*> free_objects;
-    std::vector<unsigned char*> pages;
+    List<unsigned char*> used_objects;
+    List<unsigned char*> free_objects;
+    List<unsigned char*> pages;
 };
 
 #endif

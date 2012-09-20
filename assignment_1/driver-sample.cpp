@@ -8,8 +8,8 @@ using std::printf;
 
 //#define SHOWADDRESS1
 //#define SHOWADDRESS2
-//#define SHOWREAL
-//#define SHOW_EXCEPTIONS
+#define SHOWREAL
+#define SHOW_EXCEPTIONS
 
 #include "ObjectAllocator.h"
 #include "PRNG.h"

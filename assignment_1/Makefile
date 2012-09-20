@@ -17,10 +17,10 @@ valgrind:
 	valgrind --leak-check=full --show-reachable=yes ./test2.exe
 
 driver1:
-	g++ -o test1.exe $(CFLAGS) driver-sample.cpp ObjectAllocator.cpp PRNG.cpp -Werror -Wall -Wextra -Wconversion -ansi -pedantic
+	g++ -o test1.exe $(CFLAGS) List.h driver-sample.cpp ObjectAllocator.cpp PRNG.cpp -Werror -Wall -Wextra -Wconversion -ansi -pedantic
 
 driver2:
-	g++ -o test2.exe $(CFLAGS) driver-sample2.cpp ObjectAllocator.cpp PRNG.cpp -Werror -Wall -Wextra -Wconversion -ansi -pedantic
+	g++ -o test2.exe $(CFLAGS) List.h driver-sample2.cpp ObjectAllocator.cpp PRNG.cpp -Werror -Wall -Wextra -Wconversion -ansi -pedantic
 
 clean:
 	rm *.exe
